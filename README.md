@@ -16,6 +16,8 @@ Hardware-Accelerated Real-Time Video Pipeline for Object Detection and Edge Comp
 
 - Python
 - FastAPI
+- Flask
+- CRUD
 - PyTorch
 - YOLO
 - ONNX
