@@ -1,4 +1,4 @@
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -7,6 +7,7 @@ from backend.app.schemas.stream import (
     StreamResponse,
     StreamStatusResponse,
 )
+from backend.app.services.stream_manager import StreamManager
 
 
 router = APIRouter(
@@ -15,7 +16,7 @@ router = APIRouter(
 )
 
 
-streams = {}
+stream_manager = StreamManager()
 
 
 @router.post(
@@ -24,27 +25,17 @@ streams = {}
     status_code=status.HTTP_201_CREATED,
 )
 async def create_stream(stream: StreamCreate):
-    stream_id = uuid4()
-
-    stream_data = {
-        "id": stream_id,
-        "name": stream.name,
-        "url": stream.url,
-        "status": "stopped",
-    }
-
-    streams[stream_id] = stream_data
-
-    return stream_data
+    """Create a new video stream."""
+    return await stream_manager.create_stream(stream)
 
 
 @router.get(
     "/",
     response_model=list[StreamResponse],
 )
-
 async def list_streams():
-    return list(streams.values())
+    """Return all registered streams."""
+    return await stream_manager.list_streams()
 
 
 @router.get(
@@ -52,9 +43,11 @@ async def list_streams():
     response_model=StreamResponse,
 )
 async def get_stream(stream_id: UUID):
-    stream = streams.get(stream_id)
+    """Return a stream by its ID."""
 
-    if not stream:
+    stream = await stream_manager.get_stream(stream_id)
+
+    if stream is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Stream not found",
@@ -68,15 +61,15 @@ async def get_stream(stream_id: UUID):
     response_model=StreamStatusResponse,
 )
 async def start_stream(stream_id: UUID):
-    stream = streams.get(stream_id)
+    """Start asynchronous processing for a stream."""
 
-    if not stream:
+    stream = await stream_manager.start_stream(stream_id)
+
+    if stream is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Stream not found",
         )
-
-    stream["status"] = "running"
 
     return {
         "id": stream["id"],
@@ -90,15 +83,15 @@ async def start_stream(stream_id: UUID):
     response_model=StreamStatusResponse,
 )
 async def stop_stream(stream_id: UUID):
-    stream = streams.get(stream_id)
+    """Stop asynchronous processing for a stream."""
 
-    if not stream:
+    stream = await stream_manager.stop_stream(stream_id)
+
+    if stream is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Stream not found",
         )
-
-    stream["status"] = "stopped"
 
     return {
         "id": stream["id"],

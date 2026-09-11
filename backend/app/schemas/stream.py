@@ -1,6 +1,16 @@
-from pydantic import BaseModel, Field
-from typing import Optional
+from enum import Enum
 from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+class StreamStatus(str, Enum):
+    CREATED = "created"
+    STARTING = "starting"
+    RUNNING = "running"
+    STOPPING = "stopping"
+    STOPPED = "stopped"
+    ERROR = "error"
 
 
 class StreamCreate(BaseModel):
@@ -22,10 +32,10 @@ class StreamResponse(BaseModel):
     id: UUID
     name: str
     url: str
-    status: str
+    status: StreamStatus
 
 
 class StreamStatusResponse(BaseModel):
     id: UUID
     name: str
-    status: str
+    status: StreamStatus
