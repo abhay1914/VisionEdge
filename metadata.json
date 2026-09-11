@@ -1,0 +1,6 @@
+{
+  "name": "VisionEdge: Hardware-Accelerated Video Pipeline",
+  "description": "Hardware-accelerated edge video pipeline utilizing zero-copy GPU decoding, TensorRT inference, and real-time streaming for multi-stream smart city traffic monitoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
