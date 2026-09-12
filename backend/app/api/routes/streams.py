@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from backend.app.schemas.stream import (
     StreamCreate,
+    StreamMetricsResponse,
     StreamResponse,
     StreamStatusResponse,
 )
@@ -43,8 +44,6 @@ async def list_streams():
     response_model=StreamResponse,
 )
 async def get_stream(stream_id: UUID):
-    """Return a stream by its ID."""
-
     stream = await stream_manager.get_stream(stream_id)
 
     if stream is None:
@@ -54,6 +53,24 @@ async def get_stream(stream_id: UUID):
         )
 
     return stream
+
+
+@router.get(
+    "/{stream_id}/metrics",
+    response_model=StreamMetricsResponse,
+)
+async def get_stream_metrics(stream_id: UUID):
+    """Return runtime metrics for a stream."""
+
+    metrics = await stream_manager.get_metrics(stream_id)
+
+    if metrics is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Stream metrics not found",
+        )
+
+    return metrics
 
 
 @router.post(

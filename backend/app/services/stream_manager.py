@@ -4,13 +4,18 @@ from uuid import UUID, uuid4
 
 from backend.app.schemas.stream import StreamCreate, StreamStatus
 from backend.app.services.metrics import StreamMetrics
+from backend.app.pipelines.base import BasePipeline
+from backend.app.pipelines.noop import NoOpPipeline
 
 
 class StreamManager:
-    def __init__(self):
+    def __init__(self, pipeline: BasePipeline | None = None,
+    ):
         self.streams: dict[UUID, dict[str, Any]] = {}
         self.tasks: dict[UUID, asyncio.Task] = {}
         self.metrics: dict[UUID, StreamMetrics] = {}
+
+        self.pipeline = pipeline = pipeline or NoOpPipeline()
 
     async def create_stream(self, stream: StreamCreate) -> dict[str, Any]:
         stream_id = uuid4()
@@ -32,6 +37,14 @@ class StreamManager:
 
     async def get_stream(self, stream_id: UUID) -> dict[str, Any] | None:
         return self.streams.get(stream_id)
+
+    async def get_metrics(self, stream_id: UUID,) -> dict[str, Any] | None:
+             metrics = self.metrics.get(stream_id)
+
+             if metrics is None:
+                 return None
+
+             return metrics.to_dict()
 
     async def start_stream(self, stream_id: UUID) -> dict[str, Any] | None:
         stream = self.streams.get(stream_id)
@@ -93,6 +106,13 @@ class StreamManager:
 
             while True:
                 await asyncio.sleep(1)
+
+                frame = {
+                  "stream_id": str(stream_id),
+                }
+
+                await self.pipeline.process(frame)
+
                 metrics.record_frame()
 
         except asyncio.CancelledError:

@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
@@ -39,3 +40,9 @@ class StreamStatusResponse(BaseModel):
     id: UUID
     name: str
     status: StreamStatus
+
+class StreamMetricsResponse(BaseModel):
+    frames_processed: int
+    errors: int
+    started_at: datetime | None
+    last_frame_at: datetime | None
