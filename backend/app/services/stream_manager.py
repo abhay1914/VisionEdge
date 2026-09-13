@@ -2,22 +2,28 @@ import asyncio
 from typing import Any
 from uuid import UUID, uuid4
 
-from backend.app.schemas.stream import StreamCreate, StreamStatus
-from backend.app.services.metrics import StreamMetrics
 from backend.app.pipelines.base import BasePipeline
 from backend.app.pipelines.noop import NoOpPipeline
+from backend.app.schemas.stream import StreamCreate, StreamStatus
+from backend.app.services.metrics import StreamMetrics
+from backend.app.sources.video_source import VideoSource
 
 
 class StreamManager:
-    def __init__(self, pipeline: BasePipeline | None = None,
+    def __init__(
+        self,
+        pipeline: BasePipeline | None = None,
     ):
         self.streams: dict[UUID, dict[str, Any]] = {}
         self.tasks: dict[UUID, asyncio.Task] = {}
         self.metrics: dict[UUID, StreamMetrics] = {}
 
-        self.pipeline = pipeline = pipeline or NoOpPipeline()
+        self.pipeline = pipeline or NoOpPipeline()
 
-    async def create_stream(self, stream: StreamCreate) -> dict[str, Any]:
+    async def create_stream(
+        self,
+        stream: StreamCreate,
+    ) -> dict[str, Any]:
         stream_id = uuid4()
 
         stream_data = {
@@ -35,18 +41,27 @@ class StreamManager:
     async def list_streams(self) -> list[dict[str, Any]]:
         return list(self.streams.values())
 
-    async def get_stream(self, stream_id: UUID) -> dict[str, Any] | None:
+    async def get_stream(
+        self,
+        stream_id: UUID,
+    ) -> dict[str, Any] | None:
         return self.streams.get(stream_id)
 
-    async def get_metrics(self, stream_id: UUID,) -> dict[str, Any] | None:
-             metrics = self.metrics.get(stream_id)
+    async def get_metrics(
+        self,
+        stream_id: UUID,
+    ) -> dict[str, Any] | None:
+        metrics = self.metrics.get(stream_id)
 
-             if metrics is None:
-                 return None
+        if metrics is None:
+            return None
 
-             return metrics.to_dict()
+        return metrics.to_dict()
 
-    async def start_stream(self, stream_id: UUID) -> dict[str, Any] | None:
+    async def start_stream(
+        self,
+        stream_id: UUID,
+    ) -> dict[str, Any] | None:
         stream = self.streams.get(stream_id)
 
         if stream is None:
@@ -70,7 +85,10 @@ class StreamManager:
 
         return stream
 
-    async def stop_stream(self, stream_id: UUID) -> dict[str, Any] | None:
+    async def stop_stream(
+        self,
+        stream_id: UUID,
+    ) -> dict[str, Any] | None:
         stream = self.streams.get(stream_id)
 
         if stream is None:
@@ -94,7 +112,10 @@ class StreamManager:
 
         return stream
 
-    async def _process_stream(self, stream_id: UUID) -> None:
+    async def _process_stream(
+        self,
+        stream_id: UUID,
+    ) -> None:
         stream = self.streams.get(stream_id)
         metrics = self.metrics.get(stream_id)
 
@@ -104,16 +125,18 @@ class StreamManager:
         try:
             stream["status"] = StreamStatus.RUNNING
 
-            while True:
-                await asyncio.sleep(1)
+            video_source = VideoSource(
+                stream["url"]
+            )
 
-                frame = {
-                  "stream_id": str(stream_id),
-                }
-
+            async for frame in video_source.frames():
                 await self.pipeline.process(frame)
 
                 metrics.record_frame()
+
+                await asyncio.sleep(0)
+
+            stream["status"] = StreamStatus.STOPPED
 
         except asyncio.CancelledError:
             raise
@@ -121,3 +144,6 @@ class StreamManager:
         except Exception:
             metrics.record_error()
             stream["status"] = StreamStatus.ERROR
+
+        finally:
+            self.tasks.pop(stream_id, None)
