@@ -67,7 +67,10 @@ class StreamManager:
         if stream is None:
             return None
 
-        if stream["status"] == StreamStatus.RUNNING:
+        if stream["status"] in {
+            StreamStatus.STARTING,
+            StreamStatus.RUNNING,
+        }:
             return stream
 
         stream["status"] = StreamStatus.STARTING
