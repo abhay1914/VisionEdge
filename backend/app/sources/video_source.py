@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import av
 
@@ -10,23 +11,28 @@ class VideoSource:
     def __init__(self, source: str):
         self.source = source
 
+    def _is_network_source(self) -> bool:
+        parsed = urlparse(self.source)
+
+        return parsed.scheme in {
+            "rtsp",
+            "rtmp",
+            "http",
+            "https",
+        }
+
     async def frames(
         self,
         realtime: bool = True,
     ) -> AsyncGenerator[Any, None]:
-        """
-        Open the video source and yield decoded video frames.
 
-        When realtime is enabled, frames are paced according to
-        the source video's frames per second.
-        """
+        if not self._is_network_source():
+            source_path = Path(self.source)
 
-        source_path = Path(self.source)
-
-        if not source_path.exists():
-            raise FileNotFoundError(
-                f"Video source not found: {self.source}"
-            )
+            if not source_path.exists():
+                raise FileNotFoundError(
+                    f"Video source not found: {self.source}"
+                )
 
         container = av.open(self.source)
 
