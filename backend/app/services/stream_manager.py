@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from backend.app.pipelines.base import BasePipeline
-from backend.app.pipelines.noop import NoOpPipeline
+from backend.app.pipelines.yolo import YOLOPipeline
 from backend.app.schemas.stream import StreamCreate, StreamStatus
 from backend.app.services.metrics import StreamMetrics
 from backend.app.sources.video_source import VideoSource
@@ -18,7 +18,7 @@ class StreamManager:
         self.tasks: dict[UUID, asyncio.Task] = {}
         self.metrics: dict[UUID, StreamMetrics] = {}
 
-        self.pipeline = pipeline or NoOpPipeline()
+        self.pipeline = pipeline or YOLOPipeline()
 
     async def create_stream(
         self,
