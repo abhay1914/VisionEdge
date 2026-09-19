@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Stream = {
   id: string;
@@ -12,6 +12,11 @@ const API = "http://127.0.0.1:8000";
 export default function App() {
   const [streams, setStreams] = useState<Stream[]>([]);
   const [loading, setLoading] = useState(true);
+  const [webrtcLoading, setWebrtcLoading] = useState(false);
+  const [webrtcError, setWebrtcError] = useState("");
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
 
   const loadStreams = async () => {
     try {
@@ -27,6 +32,10 @@ export default function App() {
 
   useEffect(() => {
     loadStreams();
+
+    return () => {
+      peerConnectionRef.current?.close();
+    };
   }, []);
 
   const startStream = async (id: string) => {
@@ -34,6 +43,7 @@ export default function App() {
       await fetch(`${API}/api/v1/streams/${id}/start`, {
         method: "POST",
       });
+
       await loadStreams();
     } catch (error) {
       console.error("Unable to start stream:", error);
@@ -45,10 +55,94 @@ export default function App() {
       await fetch(`${API}/api/v1/streams/${id}/stop`, {
         method: "POST",
       });
+
       await loadStreams();
     } catch (error) {
       console.error("Unable to stop stream:", error);
     }
+  };
+
+  const startWebRTC = async () => {
+    setWebrtcLoading(true);
+    setWebrtcError("");
+
+    try {
+      peerConnectionRef.current?.close();
+
+      const peerConnection = new RTCPeerConnection();
+
+      peerConnectionRef.current = peerConnection;
+
+      peerConnection.addTransceiver("video", {
+        direction: "recvonly",
+      });
+
+      peerConnection.ontrack = (event) => {
+        console.log("WebRTC video track received.");
+
+        const [stream] = event.streams;
+
+        if (videoRef.current && stream) {
+          videoRef.current.srcObject = stream;
+        }
+      };
+
+      peerConnection.onconnectionstatechange = () => {
+        console.log(
+          "WebRTC connection state:",
+          peerConnection.connectionState
+        );
+      };
+
+      const offer = await peerConnection.createOffer();
+
+      await peerConnection.setLocalDescription(offer);
+
+      const response = await fetch(
+        `${API}/api/v1/webrtc/offer`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sdp: peerConnection.localDescription?.sdp,
+            type: peerConnection.localDescription?.type,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `WebRTC server returned ${response.status}`
+        );
+      }
+
+      const answer = await response.json();
+
+      await peerConnection.setRemoteDescription(answer);
+
+      console.log("WebRTC negotiation completed.");
+    } catch (error) {
+      console.error("WebRTC connection failed:", error);
+
+      setWebrtcError(
+        "Unable to start WebRTC video stream."
+      );
+    } finally {
+      setWebrtcLoading(false);
+    }
+  };
+
+  const stopWebRTC = () => {
+    peerConnectionRef.current?.close();
+    peerConnectionRef.current = null;
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    setWebrtcError("");
   };
 
   const runningStreams = streams.filter(
@@ -60,6 +154,7 @@ export default function App() {
       <header style={styles.header}>
         <div>
           <h1 style={styles.logo}>VisionEdge</h1>
+
           <p style={styles.subtitle}>
             Hardware-Accelerated Real-Time Video Pipeline
           </p>
@@ -75,42 +170,120 @@ export default function App() {
         <section style={styles.stats}>
           <div style={styles.statCard}>
             <span style={styles.statLabel}>TOTAL STREAMS</span>
-            <strong style={styles.statValue}>{streams.length}</strong>
+
+            <strong style={styles.statValue}>
+              {streams.length}
+            </strong>
           </div>
 
           <div style={styles.statCard}>
             <span style={styles.statLabel}>RUNNING</span>
-            <strong style={styles.statValue}>{runningStreams}</strong>
+
+            <strong style={styles.statValue}>
+              {runningStreams}
+            </strong>
           </div>
 
           <div style={styles.statCard}>
             <span style={styles.statLabel}>SYSTEM STATUS</span>
-            <strong style={styles.healthy}>● Healthy</strong>
+
+            <strong style={styles.healthy}>
+              ● Healthy
+            </strong>
           </div>
+        </section>
+
+        <section style={styles.videoSection}>
+          <div style={styles.sectionHeader}>
+            <div>
+              <h2 style={styles.heading}>
+                WebRTC Video Preview
+              </h2>
+
+              <p style={styles.description}>
+                Live video stream delivered from the Python
+                aiortc backend.
+              </p>
+            </div>
+          </div>
+
+          <div style={styles.videoContainer}>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              style={styles.video}
+            />
+
+            {!webrtcLoading && !videoRef.current?.srcObject && (
+              <div style={styles.videoPlaceholder}>
+                <div style={styles.videoIcon}>▶</div>
+
+                <p>
+                  Click "Start WebRTC" to begin video playback.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div style={styles.videoActions}>
+            <button
+              style={styles.startButton}
+              onClick={startWebRTC}
+              disabled={webrtcLoading}
+            >
+              {webrtcLoading
+                ? "Connecting..."
+                : "▶ Start WebRTC"}
+            </button>
+
+            <button
+              style={styles.stopButton}
+              onClick={stopWebRTC}
+            >
+              ■ Stop WebRTC
+            </button>
+          </div>
+
+          {webrtcError && (
+            <div style={styles.error}>
+              {webrtcError}
+            </div>
+          )}
         </section>
 
         <section>
           <div style={styles.sectionHeader}>
             <div>
               <h2 style={styles.heading}>Video Streams</h2>
+
               <p style={styles.description}>
                 Monitor and control registered video streams.
               </p>
             </div>
 
-            <button style={styles.refreshButton} onClick={loadStreams}>
+            <button
+              style={styles.refreshButton}
+              onClick={loadStreams}
+            >
               ↻ Refresh
             </button>
           </div>
 
           {loading ? (
-            <div style={styles.message}>Loading streams...</div>
+            <div style={styles.message}>
+              Loading streams...
+            </div>
           ) : streams.length === 0 ? (
             <div style={styles.empty}>
               <div style={styles.emptyIcon}>◉</div>
+
               <h3>No streams available</h3>
+
               <p>
-                Create a stream through the VisionEdge API to see it here.
+                Create a stream through the VisionEdge API to
+                see it here.
               </p>
             </div>
           ) : (
@@ -120,10 +293,16 @@ export default function App() {
                   stream.status.toLowerCase() === "running";
 
                 return (
-                  <article key={stream.id} style={styles.streamCard}>
+                  <article
+                    key={stream.id}
+                    style={styles.streamCard}
+                  >
                     <div style={styles.cardHeader}>
                       <div>
-                        <h3 style={styles.streamName}>{stream.name}</h3>
+                        <h3 style={styles.streamName}>
+                          {stream.name}
+                        </h3>
+
                         <p style={styles.streamId}>
                           ID: {stream.id.slice(0, 8)}...
                         </p>
@@ -142,8 +321,13 @@ export default function App() {
                     </div>
 
                     <div style={styles.urlBox}>
-                      <span style={styles.urlLabel}>STREAM URL</span>
-                      <span style={styles.url}>{stream.url}</span>
+                      <span style={styles.urlLabel}>
+                        STREAM URL
+                      </span>
+
+                      <span style={styles.url}>
+                        {stream.url}
+                      </span>
                     </div>
 
                     <div style={styles.actions}>
@@ -153,7 +337,9 @@ export default function App() {
                           opacity: isRunning ? 0.5 : 1,
                         }}
                         disabled={isRunning}
-                        onClick={() => startStream(stream.id)}
+                        onClick={() =>
+                          startStream(stream.id)
+                        }
                       >
                         ▶ Start
                       </button>
@@ -164,7 +350,9 @@ export default function App() {
                           opacity: isRunning ? 1 : 0.5,
                         }}
                         disabled={!isRunning}
-                        onClick={() => stopStream(stream.id)}
+                        onClick={() =>
+                          stopStream(stream.id)
+                        }
                       >
                         ■ Stop
                       </button>
@@ -266,6 +454,60 @@ const styles: Record<string, React.CSSProperties> = {
   healthy: {
     color: "#22c55e",
     fontSize: "20px",
+  },
+
+  videoSection: {
+    marginBottom: "50px",
+  },
+
+  videoContainer: {
+    position: "relative",
+    width: "100%",
+    minHeight: "450px",
+    background: "#000",
+    border: "1px solid #1e293b",
+    borderRadius: "14px",
+    overflow: "hidden",
+  },
+
+  video: {
+    width: "100%",
+    height: "450px",
+    objectFit: "contain",
+    display: "block",
+    background: "#000",
+  },
+
+  videoPlaceholder: {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    color: "#64748b",
+    pointerEvents: "none",
+  },
+
+  videoIcon: {
+    fontSize: "42px",
+    marginBottom: "12px",
+  },
+
+  videoActions: {
+    display: "flex",
+    gap: "10px",
+    marginTop: "16px",
+  },
+
+  error: {
+    marginTop: "12px",
+    padding: "12px",
+    background: "#450a0a",
+    border: "1px solid #7f1d1d",
+    borderRadius: "8px",
+    color: "#fca5a5",
+    fontSize: "13px",
   },
 
   sectionHeader: {

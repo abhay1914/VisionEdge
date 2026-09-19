@@ -1,6 +1,9 @@
 # Virtual environment
 .venv/
 
+# Node
+node_modules/
+
 # Python cache
 __pycache__/
 *.py[cod]
@@ -18,3 +21,14 @@ dist/
 
 # Logs
 *.log
+
+# Local test data
+data/
+
+# Local test scripts
+test_*.py
+
+# Local model files
+*.pt
+*.onnx
+*.engine
