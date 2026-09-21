@@ -1,4 +1,5 @@
 import asyncio
+from time import perf_counter
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -132,10 +133,32 @@ class StreamManager:
                 stream["url"]
             )
 
+
             async for frame in video_source.frames():
+
+                if metrics.source_fps <= 0:
+                      metrics.set_source_fps(
+                          video_source.fps
+                    )
+
+                processing_start = perf_counter()
+
+                inference_start = perf_counter()
+
                 await self.pipeline.process(frame)
 
-                metrics.record_frame()
+                inference_time = (
+                    perf_counter() - inference_start
+                )
+
+                processing_time = (
+                    perf_counter() - processing_start
+                )
+
+                metrics.record_frame(
+                    processing_time=processing_time,
+                    inference_time=inference_time,
+                )
 
                 await asyncio.sleep(0)
 

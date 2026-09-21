@@ -46,3 +46,7 @@ class StreamMetricsResponse(BaseModel):
     errors: int
     started_at: datetime | None
     last_frame_at: datetime | None
+    processing_fps: float
+    average_inference_latency_ms: float
+    last_inference_latency_ms: float
+    source_fps: float

@@ -10,6 +10,7 @@ import av
 class VideoSource:
     def __init__(self, source: str):
         self.source = source
+        self.fps = 0.0
 
     def _is_network_source(self) -> bool:
         parsed = urlparse(self.source)
@@ -40,6 +41,7 @@ class VideoSource:
             video_stream = container.streams.video[0]
 
             fps = float(video_stream.average_rate)
+            self.fps = fps
 
             if fps <= 0:
                 fps = 30.0
