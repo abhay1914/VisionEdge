@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from backend.app.pipelines.base import BasePipeline
-from backend.app.pipelines.yolo import YOLOPipeline
+from backend.app.pipelines.tensorrt import TensorRTPipeline
 from backend.app.schemas.stream import StreamCreate, StreamStatus
 from backend.app.services.metrics import StreamMetrics
 from backend.app.sources.video_source import VideoSource
@@ -19,7 +19,10 @@ class StreamManager:
         self.tasks: dict[UUID, asyncio.Task] = {}
         self.metrics: dict[UUID, StreamMetrics] = {}
 
-        self.pipeline = pipeline or YOLOPipeline()
+        self.pipeline = pipeline or TensorRTPipeline(
+            engine_path="yolo11n.engine",
+            confidence_threshold=0.10,
+        )
 
     async def create_stream(
         self,
