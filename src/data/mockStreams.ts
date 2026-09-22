@@ -1,3 +1,4 @@
+
 import { CameraStream } from '../types';
 
 export const SMART_CITY_STREAMS: CameraStream[] = [
