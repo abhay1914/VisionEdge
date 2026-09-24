@@ -1,11 +1,4 @@
-"""
-VisionEdge - Zero-Copy Frame Transformation & CUDA In-VRAM Drawing
-Applies letterboxing, normalization, and draws bounding boxes/vectors directly in GPU device memory.
-"""
-
 import cupy as cp
-
-# High-performance 2D CUDA RawKernel to draw 2px border boxes directly in GPU framebuffer
 CUDA_DRAW_KERNEL = r'''
 extern "C" __global__
 void draw_bounding_boxes_kernel(
@@ -56,7 +49,6 @@ class ZeroCopyPipeline:
         self.device_id = device_id
         cp.cuda.Device(self.device_id).use()
 
-        # Compile CUDA C++ RawKernel at startup
         self.kernel = cp.RawKernel(CUDA_DRAW_KERNEL, 'draw_bounding_boxes_kernel')
 
     def preprocess_for_yolo(self, gpu_frame: cp.ndarray, target_size: int = 640) -> cp.ndarray:
@@ -66,11 +58,9 @@ class ZeroCopyPipeline:
         """
         step_y = self.height // target_size
         step_x = self.width // target_size
-        
-        # Subsampled slice on GPU
+      
         resized = gpu_frame[::step_y, ::step_x, :][:target_size, :target_size, :]
 
-        # HWC (uint8) -> CHW (float32 [0, 1]) in VRAM
         chw = resized.transpose(2, 0, 1).astype(cp.float32) / 255.0
         return cp.expand_dims(chw, axis=0)
 
