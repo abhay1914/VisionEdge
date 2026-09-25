@@ -24,6 +24,8 @@ class StreamMetrics:
         self.total_processing_time = 0.0
         self.total_inference_time = 0.0
         self.last_inference_latency_ms = 0.0
+        self.last_frame_at = None
+        self.source_fps = 0.0
 
     def set_source_fps(self, fps: float) -> None:
         self.source_fps = fps
