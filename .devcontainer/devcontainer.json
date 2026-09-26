@@ -1,0 +1,23 @@
+{
+  "name": "VisionEdge CUDA Dev Environment",
+  "dockerFile": "Dockerfile",
+  "runArgs": [
+    "--gpus", "all",
+    "--ipc=host",
+    "--ulimit", "memlock=-1",
+    "--net=host"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "ms-vscode.cpptools",
+        "nvidia.nsight-vscode-edition"
+      ]
+    }
+  },
+  "remoteUser": "root",
+  "workspaceFolder": "/workspace/visionedge"
+}
