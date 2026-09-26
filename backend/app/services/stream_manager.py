@@ -83,6 +83,7 @@ class StreamManager:
         if stream["status"] in {
             StreamStatus.STARTING,
             StreamStatus.RUNNING,
+            StreamStatus.STOPPING,
         }:
             return stream
 
