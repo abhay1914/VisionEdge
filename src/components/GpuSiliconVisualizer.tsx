@@ -24,7 +24,6 @@ export const GpuSiliconVisualizer: React.FC<GpuSiliconVisualizerProps> = ({
 }) => {
   const [selectedBlock, setSelectedBlock] = useState<string | null>('framebuffers');
 
-  // VRAM Allocator Breakdown for 24GB VRAM
   const memoryBlocks = [
     {
       id: 'framebuffers',
