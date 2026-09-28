@@ -72,6 +72,23 @@ async def get_stream_metrics(stream_id: UUID):
 
     return metrics
 
+@router.get(
+    "/{stream_id}/detections",
+)
+async def get_stream_detections(stream_id: UUID):
+    """Return the latest detections for a stream."""
+
+    detections = await stream_manager.get_detections(stream_id)
+
+    if detections is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Stream detections not found",
+        )
+
+    return detections
+
+
 
 @router.post(
     "/{stream_id}/start",

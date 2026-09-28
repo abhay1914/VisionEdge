@@ -6,6 +6,7 @@ import tensorrt as trt
 import torch
 
 from backend.app.pipelines.base import BasePipeline
+from backend.app.services.yolo_classes import get_class_name
 
 
 class TensorRTPipeline(BasePipeline):
@@ -352,6 +353,7 @@ class TensorRTPipeline(BasePipeline):
                 detections.append(
                     {
                         "class_id": class_id,
+                        "class_name": get_class_name(class_id),
                         "confidence": scores[
                             original_index
                         ],

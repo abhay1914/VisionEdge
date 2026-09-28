@@ -20,6 +20,7 @@ class StreamManager:
         self.streams: dict[UUID, dict[str, Any]] = {}
         self.tasks: dict[UUID, asyncio.Task] = {}
         self.metrics: dict[UUID, StreamMetrics] = {}
+        self.detections: dict[UUID, dict[str, Any]] = {}
 
         if pipeline is not None:
             self.pipeline = pipeline
@@ -70,6 +71,12 @@ class StreamManager:
             return None
 
         return metrics.to_dict()
+
+    async def get_detections(
+            self,
+            stream_id: UUID,
+            ) -> dict[str, Any] | None:
+        return self.detections.get(stream_id)
 
     async def start_stream(
         self,
@@ -158,7 +165,9 @@ class StreamManager:
 
                 inference_start = perf_counter()
 
-                await self.pipeline.process(frame)
+                pipeline_result = await self.pipeline.process(frame)
+
+                self.detections[stream_id] = pipeline_result
 
                 inference_time = (
                     perf_counter() - inference_start
