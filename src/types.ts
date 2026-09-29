@@ -26,21 +26,6 @@ export interface CameraStream {
   lng?: number;
 }
 
-export interface DetectionObject {
-  id: string;
-  label: 'Sedan' | 'SUV' | 'Heavy Truck' | 'City Bus' | 'Pedestrian' | 'Cyclist' | 'Emergency Vehicle';
-  confidence: number;
-  x: number; // 0 to 1 normalized
-  y: number;
-  w: number;
-  h: number;
-  vx: number;
-  vy: number;
-  speedKmh: number;
-  lane: number;
-  highlight?: boolean;
-  color: string;
-}
 
 export interface PipelineTelemetry {
   timestamp: number;

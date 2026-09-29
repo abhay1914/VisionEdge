@@ -15,8 +15,12 @@ export default function App() {
   const [webrtcLoading, setWebrtcLoading] = useState(false);
   const [webrtcError, setWebrtcError] = useState("");
 
+  const [detections, setDetections] = useState<any[]>([]);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+
 
   const loadStreams = async () => {
     try {
@@ -29,6 +33,33 @@ export default function App() {
       setLoading(false);
     }
   };
+
+  const loadDetections = async (id: string) => {
+  try {
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const response = await fetch(
+        `${API}/api/v1/streams/${id}/detections`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+
+        console.log("Detection data:", data);
+
+        if (data.detections && data.detections.length > 0) {
+          setDetections(data.detections);
+          return;
+        }
+      }
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1000);
+      });
+    }
+  } catch (error) {
+    console.error("Unable to load detections:", error);
+  }
+};
 
   useEffect(() => {
     loadStreams();
@@ -45,6 +76,12 @@ export default function App() {
       });
 
       await loadStreams();
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1500);
+      });
+
+      await loadDetections(id);
     } catch (error) {
       console.error("Unable to start stream:", error);
     }
@@ -215,6 +252,11 @@ export default function App() {
               muted
               style={styles.video}
             />
+
+          <canvas
+            ref={canvasRef}
+            style={styles.canvas}
+          />
 
             {!webrtcLoading && !videoRef.current?.srcObject && (
               <div style={styles.videoPlaceholder}>
@@ -476,6 +518,15 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: "contain",
     display: "block",
     background: "#000",
+  },
+
+  canvas: {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  width: "100%",
+  height: "100%",
+  pointerEvents: "none",
   },
 
   videoPlaceholder: {

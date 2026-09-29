@@ -167,7 +167,8 @@ class StreamManager:
 
                 pipeline_result = await self.pipeline.process(frame)
 
-                self.detections[stream_id] = pipeline_result
+                if pipeline_result.get("detections"):
+                    self.detections[stream_id] = pipeline_result
 
                 inference_time = (
                     perf_counter() - inference_start
