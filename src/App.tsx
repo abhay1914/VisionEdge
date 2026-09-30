@@ -69,6 +69,112 @@ export default function App() {
     };
   }, []);
 
+    useEffect(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!video || !canvas) {
+      return;
+    }
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return;
+    }
+
+    const drawDetections = () => {
+      if (
+        video.videoWidth === 0 ||
+        video.videoHeight === 0
+      ) {
+        requestAnimationFrame(drawDetections);
+        return;
+      }
+
+      const container = canvas.parentElement;
+
+      if (!container) {
+        return;
+      }
+
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+
+      canvas.width = containerWidth;
+      canvas.height = containerHeight;
+
+      context.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      const sourceWidth = video.videoWidth;
+      const sourceHeight = video.videoHeight;
+
+      const scale = Math.min(
+        containerWidth / sourceWidth,
+        containerHeight / sourceHeight
+      );
+
+      const displayedWidth = sourceWidth * scale;
+      const displayedHeight = sourceHeight * scale;
+
+      const offsetX =
+        (containerWidth - displayedWidth) / 2;
+
+      const offsetY =
+        (containerHeight - displayedHeight) / 2;
+
+      detections.forEach((detection) => {
+        const [x1, y1, x2, y2] = detection.bbox;
+
+        const boxX = offsetX + x1 * scale;
+        const boxY = offsetY + y1 * scale;
+
+        const boxWidth = (x2 - x1) * scale;
+        const boxHeight = (y2 - y1) * scale;
+
+        context.strokeStyle = "#22c55e";
+        context.lineWidth = 3;
+
+        context.strokeRect(
+          boxX,
+          boxY,
+          boxWidth,
+          boxHeight
+        );
+
+        context.fillStyle = "#22c55e";
+        context.font = "16px Arial";
+
+        context.fillText(
+          `${detection.class_name} ${(
+            detection.confidence * 100
+          ).toFixed(1)}%`,
+          boxX,
+          Math.max(boxY - 8, 16)
+        );
+      });
+    };
+
+    const animationFrame =
+      requestAnimationFrame(drawDetections);
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+
+      context.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+    };
+  }, [detections]);
+
   const startStream = async (id: string) => {
     try {
       await fetch(`${API}/api/v1/streams/${id}/start`, {
