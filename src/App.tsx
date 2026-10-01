@@ -20,6 +20,7 @@ export default function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const detectionPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 
   const loadStreams = async () => {
@@ -34,27 +35,20 @@ export default function App() {
     }
   };
 
-  const loadDetections = async (id: string) => {
+ const loadDetections = async (id: string) => {
   try {
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      const response = await fetch(
-        `${API}/api/v1/streams/${id}/detections`
-      );
+    const response = await fetch(
+      `${API}/api/v1/streams/${id}/detections`
+    );
 
-      if (response.ok) {
-        const data = await response.json();
+    if (!response.ok) {
+      return;
+    }
 
-        console.log("Detection data:", data);
+    const data = await response.json();
 
-        if (data.detections && data.detections.length > 0) {
-          setDetections(data.detections);
-          return;
-        }
-      }
-
-      await new Promise((resolve) => {
-        setTimeout(resolve, 1000);
-      });
+    if (data.detections && data.detections.length > 0) {
+      setDetections(data.detections);
     }
   } catch (error) {
     console.error("Unable to load detections:", error);
@@ -175,35 +169,53 @@ export default function App() {
     };
   }, [detections]);
 
-  const startStream = async (id: string) => {
-    try {
-      await fetch(`${API}/api/v1/streams/${id}/start`, {
-        method: "POST",
-      });
+ const startStream = async (id: string) => {
+  try {
+    await fetch(`${API}/api/v1/streams/${id}/start`, {
+      method: "POST",
+    });
 
-      await loadStreams();
+    await loadStreams();
 
-      await new Promise((resolve) => {
-        setTimeout(resolve, 1500);
-      });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1500);
+    });
 
-      await loadDetections(id);
-    } catch (error) {
-      console.error("Unable to start stream:", error);
+    await loadDetections(id);
+
+    // Prevent duplicate polling timers
+    if (detectionPollingRef.current !== null) {
+      clearInterval(detectionPollingRef.current);
     }
-  };
 
-  const stopStream = async (id: string) => {
-    try {
-      await fetch(`${API}/api/v1/streams/${id}/stop`, {
-        method: "POST",
-      });
+    // Refresh detections every second
+    detectionPollingRef.current = setInterval(() => {
+      loadDetections(id);
+    }, 1000);
+  } catch (error) {
+    console.error("Unable to start stream:", error);
+  }
+};
 
-      await loadStreams();
-    } catch (error) {
-      console.error("Unable to stop stream:", error);
+const stopStream = async (id: string) => {
+  try {
+    // Stop detection polling
+    if (detectionPollingRef.current !== null) {
+      clearInterval(detectionPollingRef.current);
+      detectionPollingRef.current = null;
     }
-  };
+
+    await fetch(`${API}/api/v1/streams/${id}/stop`, {
+      method: "POST",
+    });
+
+    setDetections([]);
+
+    await loadStreams();
+  } catch (error) {
+    console.error("Unable to stop stream:", error);
+  }
+};
 
   const startWebRTC = async () => {
     setWebrtcLoading(true);
