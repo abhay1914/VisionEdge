@@ -17,7 +17,7 @@ VIDEO_PATH = (
     Path(__file__).resolve().parents[3]
     / "data"
     / "videos"
-    / "test.mp4"
+    / "road_traffic.mp4"
 )
 
 

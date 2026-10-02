@@ -21,6 +21,9 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const detectionPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const isWebRTCStoppedRef = useRef(false);
 
 
   const loadStreams = async () => {
@@ -122,50 +125,66 @@ export default function App() {
       const offsetY =
         (containerHeight - displayedHeight) / 2;
 
-      detections.forEach((detection) => {
+      detections
+      .filter((detection) => detection.confidence >= 0.5)
+      .forEach((detection) => {
         const [x1, y1, x2, y2] = detection.bbox;
 
         const boxX = offsetX + x1 * scale;
         const boxY = offsetY + y1 * scale;
-
         const boxWidth = (x2 - x1) * scale;
         const boxHeight = (y2 - y1) * scale;
 
         context.strokeStyle = "#22c55e";
         context.lineWidth = 3;
-
-        context.strokeRect(
-          boxX,
-          boxY,
-          boxWidth,
-          boxHeight
-        );
+        context.strokeRect(boxX, boxY, boxWidth, boxHeight);
 
         context.fillStyle = "#22c55e";
         context.font = "16px Arial";
+        const label = `${detection.class_name} ${(
+  detection.confidence * 100
+).toFixed(0)}%`;
 
-        context.fillText(
-          `${detection.class_name} ${(
-            detection.confidence * 100
-          ).toFixed(1)}%`,
-          boxX,
-          Math.max(boxY - 8, 16)
-        );
+const fontSize = 14;
+context.font = `bold ${fontSize}px Arial`;
+
+const labelWidth = context.measureText(label).width + 8;
+const labelHeight = fontSize + 8;
+
+const labelX = Math.max(
+  0,
+  Math.min(boxX, canvas.width - labelWidth)
+);
+
+const labelY = Math.max(
+  labelHeight,
+  Math.min(boxY, canvas.height)
+);
+
+context.fillStyle = "#22c55e";
+context.fillRect(
+  labelX,
+  labelY - labelHeight,
+  labelWidth,
+  labelHeight
+);
+
+context.fillStyle = "#000000";
+context.fillText(
+  label,
+  labelX + 4,
+  labelY - 5
+);
       });
+
+      requestAnimationFrame(drawDetections);
     };
 
-    const animationFrame =
-      requestAnimationFrame(drawDetections);
+    const animationFrame = requestAnimationFrame(drawDetections);
 
     return () => {
       cancelAnimationFrame(animationFrame);
-
-      context.clearRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
+      context.clearRect(0, 0, canvas.width, canvas.height);
     };
   }, [detections]);
 
@@ -198,6 +217,12 @@ export default function App() {
 };
 
 const stopStream = async (id: string) => {
+  isWebRTCStoppedRef.current = true;
+
+if (reconnectTimerRef.current !== null) {
+  clearTimeout(reconnectTimerRef.current);
+  reconnectTimerRef.current = null;
+}
   try {
     // Stop detection polling
     if (detectionPollingRef.current !== null) {
@@ -217,16 +242,75 @@ const stopStream = async (id: string) => {
   }
 };
 
-  const startWebRTC = async () => {
-    setWebrtcLoading(true);
-    setWebrtcError("");
+  const startWebRTC = async (isReconnect = false) => {
+  if (!isReconnect) {
+    isWebRTCStoppedRef.current = false;
+    reconnectAttemptsRef.current = 0;
 
-    try {
-      peerConnectionRef.current?.close();
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }
 
-      const peerConnection = new RTCPeerConnection();
+  setWebrtcLoading(true);
+  setWebrtcError("");
 
-      peerConnectionRef.current = peerConnection;
+  try {
+    peerConnectionRef.current?.close();
+
+    const peerConnection = new RTCPeerConnection();
+    peerConnectionRef.current = peerConnection;
+
+    peerConnection.onconnectionstatechange = () => {
+      if (peerConnectionRef.current !== peerConnection) {
+        return;
+      }
+
+      const state = peerConnection.connectionState;
+      console.log("WebRTC connection state:", state);
+
+      if (state === "connected") {
+        setWebrtcError("");
+        return;
+      }
+
+      if (state !== "failed" && state !== "disconnected") {
+        return;
+      }
+
+      if (
+        isWebRTCStoppedRef.current ||
+        reconnectTimerRef.current !== null ||
+        reconnectAttemptsRef.current >= 5
+      ) {
+        return;
+      }
+
+      reconnectAttemptsRef.current += 1;
+
+      setWebrtcError(
+        `Connection lost. Reconnecting (${reconnectAttemptsRef.current}/5)...`
+      );
+
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+
+        if (!isWebRTCStoppedRef.current) {
+          startWebRTC(true);
+        }
+      }, 2000);
+    };
+
+    peerConnection.ontrack = (event) => {
+      console.log("WebRTC video track received.");
+
+      const [stream] = event.streams;
+
+      if (videoRef.current && stream) {
+        videoRef.current.srcObject = stream;
+      }
+    };
 
       peerConnection.addTransceiver("video", {
         direction: "recvonly",
@@ -243,11 +327,45 @@ const stopStream = async (id: string) => {
       };
 
       peerConnection.onconnectionstatechange = () => {
-        console.log(
-          "WebRTC connection state:",
-          peerConnection.connectionState
-        );
-      };
+  if (peerConnectionRef.current !== peerConnection) {
+    return;
+  }
+
+  const state = peerConnection.connectionState;
+
+  console.log("WebRTC connection state:", state);
+
+  if (state === "connected") {
+    setWebrtcError("");
+    return;
+  }
+
+  if (state !== "failed" && state !== "disconnected") {
+    return;
+  }
+
+  if (
+    isWebRTCStoppedRef.current ||
+    reconnectTimerRef.current !== null ||
+    reconnectAttemptsRef.current >= 5
+  ) {
+    return;
+  }
+
+  reconnectAttemptsRef.current += 1;
+
+  setWebrtcError(
+    `Connection lost. Reconnecting (${reconnectAttemptsRef.current}/5)...`
+  );
+
+  reconnectTimerRef.current = setTimeout(() => {
+    reconnectTimerRef.current = null;
+
+    if (!isWebRTCStoppedRef.current) {
+      startWebRTC(true);
+    }
+  }, 2000);
+};
 
       const offer = await peerConnection.createOffer();
 
@@ -279,12 +397,15 @@ const stopStream = async (id: string) => {
 
       console.log("WebRTC negotiation completed.");
     } catch (error) {
-      console.error("WebRTC connection failed:", error);
+  console.error("WebRTC connection failed:", error);
 
-      setWebrtcError(
-        "Unable to start WebRTC video stream."
-      );
-    } finally {
+  setWebrtcError(
+    error instanceof Error
+      ? error.message
+      : String(error)
+  );
+}
+     finally {
       setWebrtcLoading(false);
     }
   };
@@ -620,31 +741,34 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: "50px",
   },
 
-  videoContainer: {
-    position: "relative",
-    width: "100%",
-    minHeight: "450px",
-    background: "#000",
-    border: "1px solid #1e293b",
-    borderRadius: "14px",
-    overflow: "hidden",
-  },
+   
+  
+videoContainer: {
+  position: "relative",
+  width: "100%",
+  height: "min(70vh, 700px)",
+  minHeight: "400px",
+  background: "#000",
+  border: "1px solid #1e293b",
+  borderRadius: "14px",
+  overflow: "hidden",
+},
 
   video: {
+    position: "absolute",
+    inset: 0,
     width: "100%",
-    height: "450px",
+    height: "100%",
     objectFit: "contain",
     display: "block",
-    background: "#000",
   },
 
   canvas: {
-  position: "absolute",
-  top: 0,
-  left: 0,
-  width: "100%",
-  height: "100%",
-  pointerEvents: "none",
+    position: "absolute",
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    pointerEvents: "none",
   },
 
   videoPlaceholder: {
