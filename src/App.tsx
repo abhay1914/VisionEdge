@@ -38,23 +38,45 @@ export default function App() {
     }
   };
 
- const loadDetections = async (id: string) => {
+const loadDetections = async (id: string) => {
   try {
     const response = await fetch(
       `${API}/api/v1/streams/${id}/detections`
     );
 
+    if (response.status === 404) {
+      console.warn(
+        `Stream ${id} no longer exists. Stopping detection polling.`
+      );
+
+      // Refresh detections every second
+    if (detectionPollingRef.current !== null) {
+    clearInterval(detectionPollingRef.current);
+    detectionPollingRef.current = null;
+  }
+
+detectionPollingRef.current = setInterval(() => {
+  void loadDetections(id);
+}, 1000);
+
+      setDetections([]);
+      return;
+    }
+
     if (!response.ok) {
+      console.warn(
+        `Detection request failed: ${response.status}`
+      );
       return;
     }
 
     const data = await response.json();
-
-    if (data.detections && data.detections.length > 0) {
-      setDetections(data.detections);
-    }
+    setDetections(data.detections ?? []);
   } catch (error) {
-    console.error("Unable to load detections:", error);
+    console.warn(
+      "Detection service temporarily unavailable:",
+      error
+    );
   }
 };
 
@@ -190,26 +212,45 @@ context.fillText(
 
  const startStream = async (id: string) => {
   try {
-    await fetch(`${API}/api/v1/streams/${id}/start`, {
-      method: "POST",
-    });
-
-    await loadStreams();
-
-    await new Promise((resolve) => {
-      setTimeout(resolve, 1500);
-    });
-
-    await loadDetections(id);
-
-    // Prevent duplicate polling timers
+    // Clear any existing detection polling
     if (detectionPollingRef.current !== null) {
       clearInterval(detectionPollingRef.current);
+      detectionPollingRef.current = null;
     }
 
-    // Refresh detections every second
+    const response = await fetch(
+      `${API}/api/v1/streams/${id}/start`,
+      {
+        method: "POST",
+      }
+    );
+
+    // Do not start detection polling if the stream does not exist
+    if (response.status === 404) {
+      console.warn(
+        `Stream ${id} does not exist. Detection polling will not start.`
+      );
+
+      setDetections([]);
+      return;
+    }
+
+    if (!response.ok) {
+      console.warn(
+        `Unable to start stream: ${response.status}`
+      );
+      return;
+    }
+
+    // Give the backend a moment to initialize detection
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    // First detection request
+    await loadDetections(id);
+
+    // Start polling only after the stream was successfully started
     detectionPollingRef.current = setInterval(() => {
-      loadDetections(id);
+      void loadDetections(id);
     }, 1000);
   } catch (error) {
     console.error("Unable to start stream:", error);
@@ -242,7 +283,30 @@ if (reconnectTimerRef.current !== null) {
   }
 };
 
-  const startWebRTC = async (isReconnect = false) => {
+const scheduleWebRTCReconnect = () => {
+  if (
+    isWebRTCStoppedRef.current ||
+    reconnectTimerRef.current !== null
+  ) {
+    return;
+  }
+
+  reconnectAttemptsRef.current += 1;
+
+  setWebrtcError(
+    `Connection lost. Retrying (attempt${reconnectAttemptsRef.current}/5)...`
+  );
+
+  reconnectTimerRef.current = setTimeout(() => {
+    reconnectTimerRef.current = null;
+
+    if (!isWebRTCStoppedRef.current) {
+      void startWebRTC(true);
+    }
+  }, 3000);
+};
+
+const startWebRTC = async (isReconnect = false) => {
   if (!isReconnect) {
     isWebRTCStoppedRef.current = false;
     reconnectAttemptsRef.current = 0;
@@ -253,6 +317,8 @@ if (reconnectTimerRef.current !== null) {
     }
   }
 
+  if (isWebRTCStoppedRef.current) return;
+ 
   setWebrtcLoading(true);
   setWebrtcError("");
 
@@ -262,164 +328,104 @@ if (reconnectTimerRef.current !== null) {
     const peerConnection = new RTCPeerConnection();
     peerConnectionRef.current = peerConnection;
 
-    peerConnection.onconnectionstatechange = () => {
-      if (peerConnectionRef.current !== peerConnection) {
-        return;
-      }
-
-      const state = peerConnection.connectionState;
-      console.log("WebRTC connection state:", state);
-
-      if (state === "connected") {
-        setWebrtcError("");
-        return;
-      }
-
-      if (state !== "failed" && state !== "disconnected") {
-        return;
-      }
-
-      if (
-        isWebRTCStoppedRef.current ||
-        reconnectTimerRef.current !== null ||
-        reconnectAttemptsRef.current >= 5
-      ) {
-        return;
-      }
-
-      reconnectAttemptsRef.current += 1;
-
-      setWebrtcError(
-        `Connection lost. Reconnecting (${reconnectAttemptsRef.current}/5)...`
-      );
-
-      reconnectTimerRef.current = setTimeout(() => {
-        reconnectTimerRef.current = null;
-
-        if (!isWebRTCStoppedRef.current) {
-          startWebRTC(true);
-        }
-      }, 2000);
-    };
+    peerConnection.addTransceiver("video", {
+      direction: "recvonly",
+    });
 
     peerConnection.ontrack = (event) => {
       console.log("WebRTC video track received.");
 
       const [stream] = event.streams;
 
-      if (videoRef.current && stream) {
+      if (
+        peerConnectionRef.current === peerConnection &&
+        videoRef.current &&
+        stream
+      ) {
         videoRef.current.srcObject = stream;
       }
     };
 
-      peerConnection.addTransceiver("video", {
-        direction: "recvonly",
-      });
+    peerConnection.onconnectionstatechange = () => {
+      if (peerConnectionRef.current !== peerConnection) return;
 
-      peerConnection.ontrack = (event) => {
-        console.log("WebRTC video track received.");
+      const state = peerConnection.connectionState;
+      console.log("WebRTC connection state:", state);
 
-        const [stream] = event.streams;
-
-        if (videoRef.current && stream) {
-          videoRef.current.srcObject = stream;
-        }
-      };
-
-      peerConnection.onconnectionstatechange = () => {
-  if (peerConnectionRef.current !== peerConnection) {
-    return;
-  }
-
-  const state = peerConnection.connectionState;
-
-  console.log("WebRTC connection state:", state);
-
-  if (state === "connected") {
-    setWebrtcError("");
-    return;
-  }
-
-  if (state !== "failed" && state !== "disconnected") {
-    return;
-  }
-
-  if (
-    isWebRTCStoppedRef.current ||
-    reconnectTimerRef.current !== null ||
-    reconnectAttemptsRef.current >= 5
-  ) {
-    return;
-  }
-
-  reconnectAttemptsRef.current += 1;
-
-  setWebrtcError(
-    `Connection lost. Reconnecting (${reconnectAttemptsRef.current}/5)...`
-  );
-
-  reconnectTimerRef.current = setTimeout(() => {
-    reconnectTimerRef.current = null;
-
-    if (!isWebRTCStoppedRef.current) {
-      startWebRTC(true);
-    }
-  }, 2000);
-};
-
-      const offer = await peerConnection.createOffer();
-
-      await peerConnection.setLocalDescription(offer);
-
-      const response = await fetch(
-        `${API}/api/v1/webrtc/offer`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            sdp: peerConnection.localDescription?.sdp,
-            type: peerConnection.localDescription?.type,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `WebRTC server returned ${response.status}`
-        );
+      if (state === "connected") {
+        reconnectAttemptsRef.current = 0;
+        setWebrtcError("");
+        return;
       }
 
-      const answer = await response.json();
+      if (state === "failed" || state === "disconnected") {
+        scheduleWebRTCReconnect();
+      }
+    };
 
-      await peerConnection.setRemoteDescription(answer);
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
 
-      console.log("WebRTC negotiation completed.");
-    } catch (error) {
-  console.error("WebRTC connection failed:", error);
+    const response = await fetch(`${API}/api/v1/webrtc/offer`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sdp: peerConnection.localDescription?.sdp,
+        type: peerConnection.localDescription?.type,
+      }),
+    });
 
-  setWebrtcError(
-    error instanceof Error
-      ? error.message
-      : String(error)
-  );
-}
-     finally {
-      setWebrtcLoading(false);
-    }
-  };
-
-  const stopWebRTC = () => {
-    peerConnectionRef.current?.close();
-    peerConnectionRef.current = null;
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
+    if (!response.ok) {
+      throw new Error(`WebRTC server returned ${response.status}`);
     }
 
-    setWebrtcError("");
-  };
+    const answer = await response.json();
+
+    if (
+      isWebRTCStoppedRef.current ||
+      peerConnectionRef.current !== peerConnection
+    ) {
+      peerConnection.close();
+      return;
+    }
+
+    await peerConnection.setRemoteDescription(answer);
+
+    console.log("WebRTC negotiation completed.");
+  } catch (error) {
+    console.error("WebRTC connection failed:", error);
+
+    if (!isWebRTCStoppedRef.current) {
+      setWebrtcError(
+        error instanceof Error ? error.message : String(error)
+      );
+      scheduleWebRTCReconnect();
+    }
+  } finally {
+    setWebrtcLoading(false);
+  }
+};
+
+const stopWebRTC = () => {
+  isWebRTCStoppedRef.current = true;
+
+  if (reconnectTimerRef.current !== null) {
+    clearTimeout(reconnectTimerRef.current);
+    reconnectTimerRef.current = null;
+  }
+
+  peerConnectionRef.current?.close();
+  peerConnectionRef.current = null;
+
+  if (videoRef.current) {
+    videoRef.current.srcObject = null;
+  }
+
+  setWebrtcLoading(false);
+  setWebrtcError("");
+};
 
   const runningStreams = streams.filter(
     (stream) => stream.status.toLowerCase() === "running"
@@ -511,7 +517,7 @@ if (reconnectTimerRef.current !== null) {
           <div style={styles.videoActions}>
             <button
               style={styles.startButton}
-              onClick={startWebRTC}
+              onClick={() => void startWebRTC(false)}
               disabled={webrtcLoading}
             >
               {webrtcLoading
