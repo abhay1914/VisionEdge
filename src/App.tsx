@@ -210,7 +210,44 @@ context.fillText(
     };
   }, [detections]);
 
- const startStream = async (id: string) => {
+const waitForStreamStatus = async (
+  id: string,
+  expectedStatus: string
+) => {
+  const maxAttempts = 20;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const response = await fetch(`${API}/api/v1/streams/`);
+
+      if (!response.ok) {
+        throw new Error(`Unable to load streams: ${response.status}`);
+      }
+
+      const data: Stream[] = await response.json();
+
+      setStreams(data);
+
+      const stream = data.find((item) => item.id === id);
+
+      if (
+        stream &&
+        stream.status.toLowerCase() === expectedStatus.toLowerCase()
+      ) {
+        return stream;
+      }
+    } catch (error) {
+      console.warn("Unable to check stream status:", error);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  return null;
+};
+
+
+const startStream = async (id: string) => {
   try {
     // Clear any existing detection polling
     if (detectionPollingRef.current !== null) {
@@ -225,13 +262,11 @@ context.fillText(
       }
     );
 
-    // Do not start detection polling if the stream does not exist
     if (response.status === 404) {
-      console.warn(
-        `Stream ${id} does not exist. Detection polling will not start.`
-      );
+      console.warn(`Stream ${id} does not exist.`);
 
       setDetections([]);
+      await loadStreams();
       return;
     }
 
@@ -242,13 +277,23 @@ context.fillText(
       return;
     }
 
-    // Give the backend a moment to initialize detection
+    // Wait until backend changes the stream status to RUNNING
+    const stream = await waitForStreamStatus(id, "running");
+
+    if (!stream) {
+      console.warn(
+        "Stream did not reach RUNNING state within the expected time."
+      );
+      return;
+    }
+
+    // Give detection service a moment to initialize
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     // First detection request
     await loadDetections(id);
 
-    // Start polling only after the stream was successfully started
+    // Start detection polling
     detectionPollingRef.current = setInterval(() => {
       void loadDetections(id);
     }, 1000);
@@ -257,13 +302,15 @@ context.fillText(
   }
 };
 
+
 const stopStream = async (id: string) => {
   isWebRTCStoppedRef.current = true;
 
-if (reconnectTimerRef.current !== null) {
-  clearTimeout(reconnectTimerRef.current);
-  reconnectTimerRef.current = null;
-}
+  if (reconnectTimerRef.current !== null) {
+    clearTimeout(reconnectTimerRef.current);
+    reconnectTimerRef.current = null;
+  }
+
   try {
     // Stop detection polling
     if (detectionPollingRef.current !== null) {
@@ -271,13 +318,24 @@ if (reconnectTimerRef.current !== null) {
       detectionPollingRef.current = null;
     }
 
-    await fetch(`${API}/api/v1/streams/${id}/stop`, {
-      method: "POST",
-    });
+    const response = await fetch(
+      `${API}/api/v1/streams/${id}/stop`,
+      {
+        method: "POST",
+      }
+    );
+
+    if (!response.ok) {
+      console.warn(
+        `Unable to stop stream: ${response.status}`
+      );
+      return;
+    }
 
     setDetections([]);
 
-    await loadStreams();
+    // Wait until backend changes the stream status to STOPPED
+    await waitForStreamStatus(id, "stopped");
   } catch (error) {
     console.error("Unable to stop stream:", error);
   }
