@@ -7,6 +7,17 @@ type Stream = {
   status: string;
 };
 
+type StreamMetrics = {
+  frames_processed: number;
+  errors: number;
+  started_at: string | null;
+  last_frame_at: string | null;
+  processing_fps: number;
+  average_inference_latency_ms: number;
+  last_inference_latency_ms: number;
+  source_fps: number;
+};
+
 const API = "http://127.0.0.1:8000";
 
 export default function App() {
@@ -16,12 +27,14 @@ export default function App() {
   const [webrtcError, setWebrtcError] = useState("");
 
   const [detections, setDetections] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<Record<string, StreamMetrics>>({});
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const detectionPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const metricsPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const isWebRTCStoppedRef = useRef(false);
 
@@ -37,6 +50,35 @@ export default function App() {
       setLoading(false);
     }
   };
+
+const loadMetrics = async (id: string) => {
+  try {
+    const response = await fetch(`${API}/api/v1/streams/${id}/metrics`);
+
+    if (response.status === 404) {
+      setMetrics((current) => {
+        const updated = { ...current };
+        delete updated[id];
+        return updated;
+      });
+      return;
+    }
+
+    if (!response.ok) {
+      console.warn(`Metrics request failed: ${response.status}`);
+      return;
+    }
+
+    const data: StreamMetrics = await response.json();
+
+    setMetrics((current) => ({
+      ...current,
+      [id]: data,
+    }));
+  } catch (error) {
+    console.warn("Metrics service temporarily unavailable:", error);
+  }
+};
 
 const loadDetections = async (id: string) => {
   try {
@@ -292,11 +334,17 @@ const startStream = async (id: string) => {
 
     // First detection request
     await loadDetections(id);
+    await loadMetrics(id);
 
     // Start detection polling
     detectionPollingRef.current = setInterval(() => {
       void loadDetections(id);
     }, 1000);
+
+    metricsPollingRef.current = setInterval(() => {
+      void loadMetrics(id);
+    }, 1000);
+
   } catch (error) {
     console.error("Unable to start stream:", error);
   }
@@ -316,6 +364,11 @@ const stopStream = async (id: string) => {
     if (detectionPollingRef.current !== null) {
       clearInterval(detectionPollingRef.current);
       detectionPollingRef.current = null;
+    }
+
+    if (metricsPollingRef.current !== null) {
+      clearInterval(metricsPollingRef.current);
+      metricsPollingRef.current = null;
     }
 
     const response = await fetch(
@@ -675,6 +728,66 @@ const stopWebRTC = () => {
                       </span>
                     </div>
 
+                    <div style={styles.urlBox}>
+  <span style={styles.urlLabel}>
+    STREAM URL
+  </span>
+
+  <span style={styles.url}>
+    {stream.url}
+  </span>
+</div>
+
+{metrics[stream.id] && (
+  <div style={styles.metricsBox}>
+    <span style={styles.urlLabel}>RUNTIME METRICS</span>
+
+    <div style={styles.metricsGrid}>
+      <div>
+        <span style={styles.metricLabel}>SOURCE FPS</span>
+        <strong style={styles.metricValue}>
+          {metrics[stream.id].source_fps.toFixed(1)}
+        </strong>
+      </div>
+
+      <div>
+        <span style={styles.metricLabel}>PROCESSING FPS</span>
+        <strong style={styles.metricValue}>
+          {metrics[stream.id].processing_fps.toFixed(1)}
+        </strong>
+      </div>
+
+      <div>
+        <span style={styles.metricLabel}>FRAMES</span>
+        <strong style={styles.metricValue}>
+          {metrics[stream.id].frames_processed}
+        </strong>
+      </div>
+
+      <div>
+        <span style={styles.metricLabel}>AVG INFERENCE</span>
+        <strong style={styles.metricValue}>
+          {metrics[stream.id].average_inference_latency_ms.toFixed(1)} ms
+        </strong>
+      </div>
+
+      <div>
+        <span style={styles.metricLabel}>LAST INFERENCE</span>
+        <strong style={styles.metricValue}>
+          {metrics[stream.id].last_inference_latency_ms.toFixed(1)} ms
+        </strong>
+      </div>
+
+      <div>
+        <span style={styles.metricLabel}>ERRORS</span>
+        <strong style={styles.metricValue}>
+          {metrics[stream.id].errors}
+        </strong>
+      </div>
+    </div>
+  </div>
+)}
+
                     <div style={styles.actions}>
                       <button
                         style={{
@@ -965,6 +1078,35 @@ videoContainer: {
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
+
+  metricsBox: {
+  marginTop: "18px",
+  padding: "14px",
+  background: "#020617",
+  border: "1px solid #1e293b",
+  borderRadius: "8px",
+},
+
+metricsGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, 1fr)",
+  gap: "12px",
+  marginTop: "12px",
+},
+
+metricLabel: {
+  display: "block",
+  color: "#64748b",
+  fontSize: "9px",
+  letterSpacing: "0.8px",
+  marginBottom: "4px",
+},
+
+metricValue: {
+  display: "block",
+  color: "#e2e8f0",
+  fontSize: "14px",
+},
 
   actions: {
     display: "flex",
