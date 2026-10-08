@@ -1,0 +1,59 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "🚀 VisionEdge: Run 10-Stream Pipeline (Windows / WSL)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/main.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYDEVD_DISABLE_FILE_VALIDATION": "1",
+        "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+        "CUDA_VISIBLE_DEVICES": "0",
+        "PYTHONUNBUFFERED": "1"
+      },
+      "args": ["--config", "backend/configs/cameras.yaml"]
+    },
+    {
+      "name": "⚡ VisionEdge: Debug Single 4K Camera",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/main.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "args": ["--cam-id", "cam-01", "--debug"]
+    },
+    {
+      "name": "🪟 Windows Native (PowerShell / venv)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}\\backend\\main.py",
+      "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "PYDEVD_DISABLE_FILE_VALIDATION": "1",
+        "CUDA_LAUNCH_BLOCKING": "0"
+      },
+      "args": ["--config", "backend\\configs\\cameras.yaml"]
+    },
+    {
+      "name": "🔍 CUDA GDB: Debug CuPy Kernels (WSL / Linux)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "/usr/bin/python3",
+      "args": ["${workspaceFolder}/backend/main.py"],
+      "cwd": "${workspaceFolder}",
+      "environment": [
+        {
+          "name": "CUDA_LAUNCH_BLOCKING",
+          "value": "1"
+        }
+      ],
+      "MIMode": "gdb",
+      "miDebuggerPath": "/usr/local/cuda/bin/cuda-gdb"
+    }
+  ]
+}
