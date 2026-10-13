@@ -1,4 +1,4 @@
-# VisionEdge: Hardware-Accelerated Video Pipeline & Operations Cente
+# VisionEdge: Hardware-Accelerated Video Pipeline & Operations Center
 
 VisionEdge is a zero-copy computer vision and edge stream processing architecture engineered to ingest, decode, run real-time YOLOv10 object detection, and render bounding box overlays on **10 simultaneous 4K RTSP camera streams at 60 FPS** on a single consumer or workstation NVIDIA GPU (e.g. RTX 4090 / L40S).
 
