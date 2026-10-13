@@ -1,0 +1,40 @@
+{
+  "python.languageServer": "Pylance",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.autoSearchPaths": true,
+  "python.analysis.useLibraryCodeForTypes": true,
+  "python.analysis.extraPaths": [
+    "./backend",
+    "backend",
+    "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin",
+    "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\include",
+    "/usr/local/cuda/lib64",
+    "/usr/lib/python3/dist-packages/tensorrt"
+  ],
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/__pycache__/**": true,
+    "**/.cupy/**": true,
+    "**/*.engine": true,
+    "**/*.plan": true,
+    "**/*.onnx": true,
+    "**/*.pt": true,
+    "**/*.mp4": true,
+    "**/*.h264": true
+  },
+  "search.exclude": {
+    "**/models/*.engine": true,
+    "**/models/*.onnx": true
+  },
+  "terminal.integrated.gpuAcceleration": "on",
+  "terminal.integrated.env.windows": {
+    "CUDA_LAUNCH_BLOCKING": "0",
+    "PYTHONUNBUFFERED": "1",
+    "CUDA_PATH": "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4"
+  },
+  "terminal.integrated.env.linux": {
+    "CUDA_LAUNCH_BLOCKING": "0",
+    "PYTHONUNBUFFERED": "1"
+  }
+}
