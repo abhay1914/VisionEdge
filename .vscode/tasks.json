@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1. Verify NVDEC Hardware Decoders",
+      "type": "shell",
+      "command": "nvidia-smi dmon -s u,c,v,m 1 5 && ffmpeg -hide_banner -hwaccels | grep cuda",
+      "problemMatcher": []
+    },
+    {
+      "label": "2. Export YOLOv10 to ONNX",
+      "type": "shell",
+      "command": "python3 -c \"from ultralytics import YOLO; YOLO('backend/models/yolov10x.pt').export(format='onnx', dynamic=True, opset=17, simplify=True)\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "3. Compile TensorRT FP16 Engine",
+      "type": "shell",
+      "command": "trtexec --onnx=backend/models/yolov10x.onnx --saveEngine=backend/models/yolov10x_4k_fp16.engine --fp16 --memPoolSize=workspace:4096 --optShapes=images:10x3x640x640",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}
