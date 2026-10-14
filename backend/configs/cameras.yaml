@@ -1,0 +1,77 @@
+pipeline:
+  target_resolution: [3840, 2160] # 4K UHD (3840x2160)
+  target_fps: 60
+  model_path: "backend/models/yolov10x_4k_fp16.engine"
+  gpu_device_id: 0
+  webrtc_port: 8080
+
+cameras:
+  - id: "cam-01"
+    name: "Intersection 01 - 5th Ave & Market St"
+    zone: "Downtown Metro"
+    rtsp_url: "rtsp://edge-node.internal:554/live/cam01"
+    nvdec_instance: 0
+    codec: "H.265 (HEVC)"
+
+  - id: "cam-02"
+    name: "Intersection 02 - Harbor Tunnel Ingress"
+    zone: "Waterfront Corridor"
+    rtsp_url: "rtsp://edge-node.internal:554/live/cam02"
+    nvdec_instance: 1
+    codec: "H.265 (HEVC)"
+
+  - id: "cam-03"
+    name: "Intersection 03 - Metro Central Plaza"
+    zone: "Commercial Center"
+    rtsp_url: "rtsp://edge-node.internal:554/live/cam03"
+    nvdec_instance: 0
+    codec: "H.264 (AVC)"
+
+  - id: "cam-04"
+    name: "Intersection 04 - Financial Dist & 2nd St"
+    zone: "Banking District"
+    rtsp_url: "rtsp://edge-node.internal:554/live/cam04"
+    nvdec_instance: 1
+    codec: "H.265 (HEVC)"
+
+  - id: "cam-05"
+    name: "Intersection 05 - Tech Corridor Way"
+    zone: "Innovation District"
+    rtsp_url: "rtsp://edge-node.internal:554/live/cam05"
+    nvdec_instance: 0
+    codec: "H.265 (HEVC)"
+
+  - id: "cam-06"
+    name: "Intersection 06 - West Expressway Ramp 12"
+    zone: "Highway Interchange"
+    rtsp_url: "rtsp://edge-node.internal:554/live/cam06"
+    nvdec_instance: 1
+    codec: "H.265 (HEVC)"
+
+  - id: "cam-07"
+    name: "Intersection 07 - Airport Terminal Approach"
+    zone: "Transit Hub"
+    rtsp_url: "rtsp://edge-node.internal:554/live/cam07"
+    nvdec_instance: 0
+    codec: "H.265 (HEVC)"
+
+  - id: "cam-08"
+    name: "Intersection 08 - University South Cross"
+    zone: "Campus Perimeter"
+    rtsp_url: "rtsp://edge-node.internal:554/live/cam08"
+    nvdec_instance: 1
+    codec: "H.264 (AVC)"
+
+  - id: "cam-09"
+    name: "Intersection 09 - Industrial Port Access"
+    zone: "Logistics Sector"
+    rtsp_url: "rtsp://edge-node.internal:554/live/cam09"
+    nvdec_instance: 0
+    codec: "H.265 (HEVC)"
+
+  - id: "cam-10"
+    name: "Intersection 10 - Civic Hill Overpass"
+    zone: "Government Center"
+    rtsp_url: "rtsp://edge-node.internal:554/live/cam10"
+    nvdec_instance: 1
+    codec: "H.265 (HEVC)"
